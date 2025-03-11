@@ -2,8 +2,8 @@ package examples
 
 import (
 	"fmt"
+	"github.com/PJNube/lib-nats/pjnnats"
 	"github.com/nats-io/nats.go"
-	"github.com/pjnube/lib-nats/pjnnats"
 	"log"
 	"testing"
 	"time"

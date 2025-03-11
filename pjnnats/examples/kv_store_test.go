@@ -1,7 +1,7 @@
 package examples
 
 import (
-	"github.com/pjnube/lib-nats/pjnnats"
+	"github.com/PJNube/lib-nats/pjnnats"
 	"github.com/stretchr/testify/assert"
 	"log"
 	"testing"

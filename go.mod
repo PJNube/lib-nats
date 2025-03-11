@@ -1,4 +1,4 @@
-module github.com/pjnube/lib-nats
+module github.com/PJNube/lib-nats
 
 go 1.23.1
 
