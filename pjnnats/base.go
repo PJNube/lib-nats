@@ -40,6 +40,8 @@ type NewOpts struct {
 	Timeout         time.Duration
 	EnableJetStream bool
 	AuthToken       string      // For token-based authentication
+	User            string      // For authentication
+	Password        string      // For authentication
 	CredsFile       string      // For NATS credentials file
 	TLSConfig       *tls.Config // For TLS authentication
 }
@@ -141,6 +143,10 @@ func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connecti
 
 	if opts.AuthToken != "" {
 		natsOptions = append(natsOptions, nats.Token(opts.AuthToken))
+	}
+
+	if opts.User != "" && opts.Password != "" {
+		natsOptions = append(natsOptions, nats.UserInfo(opts.User, opts.Password))
 	}
 
 	if opts.CredsFile != "" {
