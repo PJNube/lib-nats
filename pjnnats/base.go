@@ -447,10 +447,13 @@ func (n *Client) SubscribeWithRespond(uuid, subj string, handler func(msg *nats.
 	})
 
 	_, err = conn.Connection.Subscribe(subj, func(msg *nats.Msg) {
-		responseMsg := handler(msg)
-		if err := msg.RespondMsg(responseMsg); err != nil {
-			return
-		}
+		// Process each message in its own goroutine for concurrency
+		go func(m *nats.Msg) {
+			responseMsg := handler(m)
+			if err := m.RespondMsg(responseMsg); err != nil {
+				return
+			}
+		}(msg)
 	})
 
 	return err
