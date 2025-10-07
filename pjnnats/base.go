@@ -3,16 +3,19 @@ package pjnnats
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/nats-io/nats.go"
-	"github.com/rs/xid"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/PJNube/lib-models/dtos"
+	"github.com/nats-io/nats.go"
+	"github.com/rs/xid"
 )
 
 type ConnectionStatus int
@@ -20,6 +23,7 @@ type ConnectionStatus int
 const (
 	Active ConnectionStatus = iota
 	Disabled
+	NatsConnectionUUID = "local"
 )
 
 // Opts represents options for NATS operations.
@@ -69,6 +73,7 @@ type IClient interface {
 
 	// NATS Methods
 	Publish(uuid string, msg nats.Msg) error
+	PublishNotification(subject, event string, message any) error
 	Subscribe(uuid string, subject string, cb nats.MsgHandler) (*nats.Subscription, error)
 	Request(uuid string, msg nats.Msg, cb nats.MsgHandler, duration *time.Duration) error
 	SubscribeWithRespond(uuid string, subject string, handler func(msg *nats.Msg) *nats.Msg) error
@@ -376,6 +381,32 @@ func (n *Client) Publish(uuid string, msg nats.Msg) error {
 		return err
 	}
 	return conn.Connection.PublishMsg(&msg)
+}
+
+func (n *Client) PublishNotification(subject, event string, message any) error {
+	payload, err := getNotifyPayload(message, event)
+	if err != nil {
+		return err
+	}
+
+	return n.Publish(NatsConnectionUUID, nats.Msg{
+		Subject: subject,
+		Data:    payload,
+	})
+}
+
+func getNotifyPayload(message any, event string) ([]byte, error) {
+	notifyPayload := &dtos.NotificationPayload{
+		Event: event,
+		Data:  message,
+	}
+
+	payload, err := json.Marshal(notifyPayload)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling notification payload: %w", err)
+	}
+
+	return payload, nil
 }
 
 // Subscribe listens for messages on a specific connection.
