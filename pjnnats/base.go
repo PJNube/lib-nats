@@ -5,14 +5,15 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/nats-io/nats.go"
-	"github.com/rs/xid"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/nats-io/nats.go"
+	"github.com/rs/xid"
 )
 
 type ConnectionStatus int
@@ -69,6 +70,7 @@ type IClient interface {
 
 	// NATS Methods
 	Publish(uuid string, msg nats.Msg) error
+	PublishNotification(subject, event string, message any) error
 	Subscribe(uuid string, subject string, cb nats.MsgHandler) (*nats.Subscription, error)
 	Request(uuid string, msg nats.Msg, cb nats.MsgHandler, duration *time.Duration) error
 	SubscribeWithRespond(uuid string, subject string, handler func(msg *nats.Msg) *nats.Msg) error
