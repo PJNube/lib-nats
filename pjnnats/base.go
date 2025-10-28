@@ -406,10 +406,13 @@ func (n *Client) Request(uuid string, msg nats.Msg, cb nats.MsgHandler, timeout 
 		timeout = &conn.Options.Timeout
 	}
 
+	fmt.Println(">>>>", msg.Subject, *timeout)
 	m, err := conn.Connection.RequestMsg(&msg, *timeout)
 	if err != nil {
+		fmt.Println(">>>>err", msg.Subject, err.Error())
 		return err
 	}
+	fmt.Println(">>>>no err", msg.Subject)
 
 	if cb != nil {
 		cb(m)
@@ -420,15 +423,19 @@ func (n *Client) Request(uuid string, msg nats.Msg, cb nats.MsgHandler, timeout 
 func (n *Client) SynchronousRequest(uuid string, msg nats.Msg, timeout *time.Duration) (*nats.Msg, error) {
 	msgChan := make(chan *nats.Msg, 1)
 	handler := func(msg *nats.Msg) {
-		msgChan <- msg
+		select {
+		case msgChan <- msg:
+		default:
+		}
 	}
-	err := n.Request(uuid, msg, handler, timeout)
-	if err != nil {
+
+	if err := n.Request(uuid, msg, handler, timeout); err != nil {
 		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
+
 	select {
 	case <-ctx.Done():
 		return nil, errors.New("request timeout")
