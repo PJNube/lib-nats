@@ -104,44 +104,65 @@ type IClient interface {
 
 // Client is the implementation of the IClient interface.
 type Client struct {
-	connections map[string]*Connection
-	mu          sync.RWMutex
+	connections    map[string]*Connection
+	mu             sync.RWMutex
+	configurations map[string]*NewOpts
+	// handlerRegistrations holds functions to register all responders/handlers
+	handlerRegistrations map[string][]func(conn *nats.Conn)
 }
 
 // New creates a new instance of IClient with an empty connection manager.
 func New() *Client {
 	return &Client{
-		connections: make(map[string]*Connection),
+		connections:          make(map[string]*Connection),
+		configurations:       make(map[string]*NewOpts),
+		handlerRegistrations: make(map[string][]func(conn *nats.Conn)),
 	}
 }
 
 func (n *Client) GetConnection(uuid string) (*Connection, error) {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
 	conn, exists := n.connections[uuid]
 	if !exists {
+		opts, configExists := n.configurations[uuid]
+		if configExists {
+			return n.AddConnection(opts, uuid)
+		}
 		return nil, errors.New("connection not found")
 	}
 	return conn, nil
+}
+
+func (n *Client) GetConfigurations() map[string]*NewOpts {
+	return n.configurations
 }
 
 // AddConnection adds a new NATS connection and returns its UUID.
 func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connection, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+
 	var uuid string
 	if len(optionalUUID) > 0 {
 		uuid = optionalUUID[0]
 	} else {
 		uuid = xid.New().String()
 	}
+
+	n.configurations[uuid] = opts
+
 	if opts.Timeout == 0 {
 		opts.Timeout = 2
 	}
 	natsOptions := []nats.Option{
 		nats.Timeout(opts.Timeout * time.Second),
 	}
+
+	// Register all handlers on connect and reconnect
+	natsOptions = append(natsOptions, nats.ReconnectHandler(func(nc *nats.Conn) {
+		for _, reg := range n.handlerRegistrations[uuid] {
+			reg(nc)
+		}
+	}))
 
 	if opts.AuthToken != "" {
 		natsOptions = append(natsOptions, nats.Token(opts.AuthToken))
@@ -169,6 +190,9 @@ func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connecti
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 		}
+		for _, reg := range n.handlerRegistrations[uuid] {
+			reg(nc)
+		}
 	} else {
 		nc = opts.NatsConn
 	}
@@ -193,6 +217,12 @@ func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connecti
 	n.connections[uuid] = conn
 
 	return conn, nil
+}
+
+func (n *Client) RegisterHandler(uuid string, reg func(conn *nats.Conn)) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.handlerRegistrations[uuid] = append(n.handlerRegistrations[uuid], reg)
 }
 
 // EditConnection updates the connection parameters for a given UUID.
@@ -357,15 +387,30 @@ func (n *Client) Close() {
 	}
 }
 
-// Helper method to retrieve an active connection by UUID.
-func (n *Client) getActiveConnection(uuid string) (*Connection, error) {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
+func (n *Client) IsConnectionActive(uuid string) bool {
 	conn, exists := n.connections[uuid]
 	if !exists {
+		return false
+	}
+
+	if conn.Status != Active || !conn.Connection.IsConnected() {
+		return false
+	}
+
+	return true
+}
+
+// Helper method to retrieve an active connection by UUID.
+func (n *Client) getActiveConnection(uuid string) (*Connection, error) {
+	conn, exists := n.connections[uuid]
+	if !exists {
+		opts, configExists := n.configurations[uuid]
+		if configExists {
+			return n.AddConnection(opts, uuid)
+		}
 		return nil, errors.New("connection not found")
 	}
+
 	if conn.Status != Active || !conn.Connection.IsConnected() {
 		return nil, errors.New("connection is not active")
 	}
