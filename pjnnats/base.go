@@ -141,6 +141,9 @@ func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connecti
 	}
 	natsOptions := []nats.Option{
 		nats.Timeout(opts.Timeout * time.Second),
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(time.Second),
 	}
 
 	if opts.AuthToken != "" {
@@ -165,10 +168,7 @@ func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connecti
 	var nc *nats.Conn
 	var err error
 	if opts.NatsConn == nil {
-		nc, err = nats.Connect(opts.URL, natsOptions...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to NATS: %w", err)
-		}
+		nc, _ = nats.Connect(opts.URL, natsOptions...)
 	} else {
 		nc = opts.NatsConn
 	}
@@ -365,9 +365,6 @@ func (n *Client) getActiveConnection(uuid string) (*Connection, error) {
 	conn, exists := n.connections[uuid]
 	if !exists {
 		return nil, errors.New("connection not found")
-	}
-	if conn.Status != Active || !conn.Connection.IsConnected() {
-		return nil, errors.New("connection is not active")
 	}
 	return conn, nil
 }
