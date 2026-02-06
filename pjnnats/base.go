@@ -36,15 +36,18 @@ type Subjects struct {
 
 // NewOpts represents the options required for creating a new NATS connection.
 type NewOpts struct {
-	URL             string
-	NatsConn        *nats.Conn
-	Timeout         time.Duration
-	EnableJetStream bool
-	AuthToken       string      // For token-based authentication
-	User            string      // For authentication
-	Password        string      // For authentication
-	CredsFile       string      // For NATS credentials file
-	TLSConfig       *tls.Config // For TLS authentication
+	URL                  string
+	NatsConn             *nats.Conn
+	Timeout              time.Duration
+	RetryOnFailedConnect bool
+	MaxReconnects        int
+	ReconnectWait        time.Duration
+	EnableJetStream      bool
+	AuthToken            string      // For token-based authentication
+	User                 string      // For authentication
+	Password             string      // For authentication
+	CredsFile            string      // For NATS credentials file
+	TLSConfig            *tls.Config // For TLS authentication
 }
 
 // Connection holds details about each NATS connection.
@@ -128,8 +131,10 @@ func (n *Client) GetConnection(uuid string) (*Connection, error) {
 
 // AddConnection adds a new NATS connection and returns its UUID.
 func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connection, error) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
+	if opts == nil {
+		return nil, fmt.Errorf("options cannot be nil")
+	}
+
 	var uuid string
 	if len(optionalUUID) > 0 {
 		uuid = optionalUUID[0]
@@ -141,6 +146,9 @@ func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connecti
 	}
 	natsOptions := []nats.Option{
 		nats.Timeout(opts.Timeout * time.Second),
+		nats.RetryOnFailedConnect(opts.RetryOnFailedConnect),
+		nats.MaxReconnects(opts.MaxReconnects),
+		nats.ReconnectWait(opts.ReconnectWait),
 	}
 
 	if opts.AuthToken != "" {
@@ -190,7 +198,9 @@ func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connecti
 		JSContext:  js,
 	}
 
+	n.mu.Lock()
 	n.connections[uuid] = conn
+	n.mu.Unlock()
 
 	return conn, nil
 }
@@ -365,9 +375,6 @@ func (n *Client) getActiveConnection(uuid string) (*Connection, error) {
 	conn, exists := n.connections[uuid]
 	if !exists {
 		return nil, errors.New("connection not found")
-	}
-	if conn.Status != Active || !conn.Connection.IsConnected() {
-		return nil, errors.New("connection is not active")
 	}
 	return conn, nil
 }
