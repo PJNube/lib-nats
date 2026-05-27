@@ -6,13 +6,14 @@ import (
 )
 
 const (
-	EventKeyword = "$event"
-	SysKeyword   = "$sys"
+	EventKeyword        = "$event"
+	SysKeyword          = "$sys"
+	NotificationKeyword = "$notification"
 
-	BeKeyword         = "be"
-	CoreKeyword       = "core"
-	DeleteRoleKeyword = "delete.role"
-	CheckRoleKeyword  = "check.role"
+	BeProfile    = "be"
+	VendorPjnube = "pjnube"
+
+	DeleteRoleSubject = "delete.role"
 )
 
 func BuildSubject(profile, vendor string, extName ...string) string {
@@ -22,6 +23,6 @@ func BuildSubject(profile, vendor string, extName ...string) string {
 	return strings.ToLower(fmt.Sprintf("local.%s.%s.%s.%s", EventKeyword, profile, vendor, extName[0]))
 }
 
-func BuildLocalEventSysSubject(profile, vendor, subject string) string {
-	return fmt.Sprintf("local.%s.%s.%s.%s.%s", EventKeyword, profile, vendor, SysKeyword, subject)
+func BuildNotificationSysSubject(profile, vendor, subject string) string {
+	return fmt.Sprintf("local.%s.%s.%s.%s.%s", NotificationKeyword, profile, vendor, SysKeyword, subject)
 }
