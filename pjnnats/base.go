@@ -43,6 +43,7 @@ type NewOpts struct {
 	MaxReconnects        int
 	ReconnectWait        time.Duration
 	EnableJetStream      bool
+	NoEcho               bool        // Do not deliver this connection's own publishes back to its subscriptions
 	AuthToken            string      // For token-based authentication
 	User                 string      // For authentication
 	Password             string      // For authentication
@@ -149,6 +150,10 @@ func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connecti
 		nats.RetryOnFailedConnect(opts.RetryOnFailedConnect),
 		nats.MaxReconnects(opts.MaxReconnects),
 		nats.ReconnectWait(opts.ReconnectWait),
+	}
+
+	if opts.NoEcho {
+		natsOptions = append(natsOptions, nats.NoEcho())
 	}
 
 	if opts.AuthToken != "" {
