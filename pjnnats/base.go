@@ -48,6 +48,8 @@ type NewOpts struct {
 	User                 string      // For authentication
 	Password             string      // For authentication
 	CredsFile            string      // For NATS credentials file
+	UserJWT              string      // In-memory decentralised auth: the user JWT ...
+	NKeySeed             string      // ... and the NKey seed that signs the server nonce. Both required; used when CredsFile is empty.
 	TLSConfig            *tls.Config // For TLS authentication
 }
 
@@ -166,6 +168,8 @@ func (n *Client) AddConnection(opts *NewOpts, optionalUUID ...string) (*Connecti
 
 	if opts.CredsFile != "" {
 		natsOptions = append(natsOptions, nats.UserCredentials(opts.CredsFile))
+	} else if opts.UserJWT != "" && opts.NKeySeed != "" {
+		natsOptions = append(natsOptions, nats.UserJWTAndSeed(opts.UserJWT, opts.NKeySeed))
 	}
 
 	if opts.TLSConfig != nil {
